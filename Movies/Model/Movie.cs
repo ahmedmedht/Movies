@@ -14,7 +14,9 @@
         [MaxLength(2600)]
         public string StoreLine { get; set; } 
 
-        public byte[] Poster {  get; set; }
+        public Guid? ImageGuid { get; set; }
+
+        public ImageInfo? ImageInfo {  get; set; }
 
         public byte GenreId { get; set; }  
 

@@ -11,7 +11,8 @@ namespace Movies.Model
             modelBuilder.Entity<Genre>().Property(g => g.Id).ValueGeneratedOnAdd();
         }
 
-       public DbSet <Genre> GenreSet { get; set; } 
+        public DbSet <Genre> GenreSet { get; set; } 
         public DbSet<Movie> Movies { get; set; }
+        public DbSet<ImageInfo> Images { get; set; }
     }
 }

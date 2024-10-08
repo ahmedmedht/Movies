@@ -1,6 +1,12 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualBasic;
+using Movies.Dtos;
+using Movies.Dtos.ShowData;
+using Movies.Dtos.UpdateDto;
+using Movies.Model;
+using Movies.Services;
 
 namespace Movies.Controllers
 {
@@ -8,128 +14,92 @@ namespace Movies.Controllers
     [ApiController]
     public class MoviesController : ControllerBase
     {
-        private readonly ApplictionDbContext _context;
+        private readonly IMoviesService _moviesService;
 
-        private new List<string> _allowedExtenstions = new() { ".jpg", ".png" };
-        private long _maxAllowedPosterSize = 1024 * 1024;
-
-
-
-        public MoviesController(ApplictionDbContext context)
+        public MoviesController(IMoviesService moviesService)
         {
-            _context = context;
+            _moviesService = moviesService;
         }
-        [HttpGet]
+
+        [HttpGet("GetAllMovies")]
         public async Task<IActionResult> GetAllAsync()
         {
-            var movie = await _context.Movies.Include(c => c.Genre).ToListAsync();
-            return Ok(movie);
+            var movies = await _moviesService.GetAllMovie();
+            if (!movies.IsSuccess) {
+                return BadRequest(movies.ErrorMessage);
+            }
+            var moviesShow = new List<MovieDtoShow>();
+            foreach (var movie in movies.Value) {
+                var checkMovie = await _moviesService.ShowMovieData(movie);
+
+                moviesShow.Add(checkMovie.Value);
+            }
+
+            return Ok(moviesShow);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("GetMovieById{id}")]
         public async Task<IActionResult> GetByIdAsync(int id)
         {
-            var movie = await _context.Movies.Include(c => c.Genre).SingleOrDefaultAsync(m => m.Id == id);
-            return Ok(movie);
+            var movie= await _moviesService.GetById(id);
+            if (!movie.IsSuccess) 
+                return BadRequest(movie.ErrorMessage);
+            var movieShow = await _moviesService.ShowMovieData(movie.Value);
+
+            if (!movieShow.IsSuccess && movieShow.ErrorMessage.Length > 0)
+                return Ok(movieShow.ErrorMessage);
+
+            
+                
+            return Ok(movieShow.Value);
         }
 
-        [HttpGet("GetByGenreId")]
-        public async Task<IActionResult> GetByIdGenreAsync(byte genreId)
-        {
-            var movie = await _context.Movies.Where(m => m.GenreId == genreId).Include(c => c.Genre).ToListAsync();
-            return Ok(movie);
-        }
 
-
-        [HttpPost]
+        [HttpPost("AddMovie")]
         public async Task<IActionResult> CreateAsync([FromForm] MovieDto dto)
         {
-            if (dto.Poster == null)
-                return BadRequest("Poster is requrid!");
-            if (!_allowedExtenstions.Contains(Path.GetExtension(dto.Poster.FileName).ToLower()))
-                return BadRequest("Only .png and .jpg images are allowed");
+            var movie = await _moviesService.AddMovieAsync(dto);
+            if (!movie.IsSuccess)
+                return BadRequest(movie.ErrorMessage);
 
-            if (_maxAllowedPosterSize < dto.Poster.Length )
-                return BadRequest("Max size 1 mb");
-
-            var isValidGenre = await _context.GenreSet.AnyAsync(g => g.Id == dto.GenreId);
-            if (!isValidGenre)
-                return BadRequest("Invalid genere ID");
+            var movieShow = await _moviesService.ShowMovieData(movie.Value);
+            if (!movieShow.IsSuccess)
+                movieShow.Value.ImageData = [0];
 
 
-            using var dataStream = new MemoryStream();
-
-            await dto.Poster.CopyToAsync(dataStream);
-
-            var movie = new Movie
-            {
-                GenreId = dto.GenreId,
-                Title = dto.Title,
-                Poster = dataStream.ToArray(),
-                Rate = dto.Rate,
-                StoreLine = dto.StoreLine,
-                Year = dto.Year
-            };
-
-            await _context.AddAsync(movie);
-            _context.SaveChanges();
-
-            return Ok(movie);
+            return Ok(movieShow.Value);
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("DeleteMovie")]
         public async Task<IActionResult> DeleteAsync(int id)
         {
-            var movie = await _context.Movies.FindAsync(id);
-            if (movie == null)
-                return BadRequest($"No movie found with ID {id}");
-            _context.Remove(movie);
-            _context.SaveChanges();
-            return Ok(movie);
+            var delMovie = await _moviesService.DeleteMovie(id);
+            if(!delMovie.IsSuccess)
+                return BadRequest(delMovie.ErrorMessage);
+
+            var movieShow = await _moviesService.ShowMovieData(delMovie.Value);
+            if (!movieShow.IsSuccess)
+                movieShow.Value.ImageData = [0];
+
+
+            return Ok(movieShow.Value);
 
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAsync(int id,MovieDto dto)
+        [HttpPut("UpdateMovie")]
+        public async Task<IActionResult> UpdateAsync(MovieDtoUpdate dto)
         {
-            var movie = await _context.Movies.FindAsync(id);
-            if (movie == null)
-                return BadRequest($"No movie found with ID {id}");
-            var isValidGenre = await _context.GenreSet.AnyAsync(g => g.Id == dto.GenreId);
-            if (!isValidGenre)
-                return BadRequest("Invalid genere ID");
+            var movie = await _moviesService.UpdateMovie(dto);
+            if (!movie.IsSuccess)
+                return BadRequest(movie.ErrorMessage);
 
-            if (dto.Poster != null)
-            {
-                if (!_allowedExtenstions.Contains(Path.GetExtension(dto.Poster.FileName).ToLower()))
-                    return BadRequest("Only .png and .jpg images are allowed");
+            var movieShow = await _moviesService.ShowMovieData(movie.Value);
+            if (!movieShow.IsSuccess)
+                movieShow.Value.ImageData = [0];
 
-                if (_maxAllowedPosterSize < dto.Poster.Length)
-                    return BadRequest("Max size 1 mb");
 
-                using var dataStream = new MemoryStream();
-
-                await dto.Poster.CopyToAsync(dataStream);
-                movie.Poster = dataStream.ToArray();
-
-            }
-            else {
-                movie.Poster = movie.Poster;
-            }
-            movie.Title = dto.Title;
-            movie.Year = dto.Year;
-            movie.StoreLine = dto.StoreLine;
-            movie.Rate = dto.Rate;
-            movie.GenreId = dto.GenreId;
-
-            _context.SaveChanges();
-            return Ok(movie);
-
+            return Ok(movieShow.Value);
         }
-
-
-
-        
 
     }
 }

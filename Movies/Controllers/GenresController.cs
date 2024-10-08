@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Movies.Dtos.UpdateDto;
 using Movies.Services;
 
 namespace Movies.Controllers
@@ -19,8 +20,11 @@ namespace Movies.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllAsync()
         {
-            
-            return Ok(await _genresService.GetGenresAsync());
+            var genre = await _genresService.GetGenresAsync();
+            if (!genre.IsSuccess)
+                return BadRequest(genre.ErrorMessage);
+
+            return Ok(genre.Value);
         }
 
 
@@ -28,32 +32,29 @@ namespace Movies.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateAsync(CreateGenreDto dto)
         {
-            var genre =new Genre { Name= dto.Name};
-           await _genresService.AddAsync(genre);
-            return Ok(genre);  
+            var genre = await _genresService.AddAsync(dto.Name);
+            if (!genre.IsSuccess)
+                return BadRequest(genre.ErrorMessage);
+            return Ok(genre.Value);  
 
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateAsync(byte id, [FromForm] CreateGenreDto dto )
+        [HttpPut("Update Genre")]
+        public async Task<IActionResult> UpdateAsync(GenreDtoUpdate dto)
         {
-            var genre = await _genresService.GetById(id);
-
-            if (genre == null) 
-                return NotFound($"No genre was found with ID: {id}");
-            genre.Name = dto.Name;
-            _genresService.UpdateAsync(genre);
-            return Ok(genre);
+            var genre = await _genresService.UpdateAsync(dto);
+            if (!genre.IsSuccess)
+                return BadRequest(genre.ErrorMessage);
+            return Ok(genre.Value);
         }
 
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteAsync(byte id, [FromBody] CreateGenreDto dto)
+        public async Task<IActionResult> DeleteAsync(byte id)
         {
-            var genre = await _genresService.GetById(id);
-            if (genre == null)
-                return NotFound($"No genre was found with ID: {id}");
-            _genresService.DeleteAsync(genre);
-            return Ok(genre);
+            var genre = await _genresService.DeleteAsync(id);
+            if (!genre.IsSuccess)
+                return BadRequest(genre.ErrorMessage);
+            return Ok(genre.Value);
 
         }
     }
